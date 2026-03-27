@@ -1,1 +1,71 @@
+#include "project.h"
 
+// Логіка Active-Low: 0 = світиться, 1 = вимкнено
+void SetLED(uint8_t r, uint8_t g, uint8_t b) {
+    LED_R_Write(r);
+    LED_G_Write(g);
+    LED_B_Write(b);
+}
+
+int main(void)
+{
+    CyGlobalIntEnable; 
+
+    SW_Tx_UART_Start();
+    SW_Tx_UART_PutString("\r\n--- 10-Second Color Swap Started ---\r\n");
+
+    uint8_t button_state = 1;
+    uint8_t last_button_state = 1;
+    
+    uint8_t color_mode = 0; // 0 = Червоний/Зелений, 1 = Бірюзовий/Фіолетовий
+    uint8_t led_phase = 0;  // 0 = Перший колір у парі, 1 = Другий колір у парі
+    uint16_t timer = 0;     // Лічильник для 10 секунд
+
+    for(;;)
+    {
+        button_state = Button_Read();
+
+        if (button_state == 0 && last_button_state == 1) 
+        {
+            color_mode = !color_mode; // Перемикаємо пару кольорів
+            
+            // Скидаємо таймер і фазу, щоб новий колір застосувався миттєво
+            timer = 0; 
+            led_phase = 0; 
+            
+            if (color_mode == 0) {
+                SW_Tx_UART_PutString("Mode: RED / GREEN (10s swap)\r\n");
+            } else {
+                SW_Tx_UART_PutString("Mode: TURQUOISE / PURPLE (10s swap)\r\n");
+            }
+        }
+        last_button_state = button_state;
+
+        timer++;
+        if (timer >= 1000)  // 1000 кроків * 10 мс = 10 000 мс (10 секунд)
+        {
+            timer = 0;              // Скидаємо лічильник
+            led_phase = !led_phase; // Перемикаємо колір всередині пари
+        }
+
+        if (color_mode == 0) 
+        {
+            // Режим 0: Червоний <-> Зелений
+            if (led_phase == 0) {
+                SetLED(0, 1, 1); // Червоний
+            } else {
+                SetLED(1, 0, 1); // Зелений
+            }
+        } 
+        else 
+        {
+            if (led_phase == 0) {
+                SetLED(1, 0, 0); // Бірюзовий (Зелений + Синій)
+            } else {
+                SetLED(0, 1, 0); // Фіолетовий (Червоний + Синій)
+            }
+        }
+
+        CyDelay(10); 
+    }
+}
